@@ -1,0 +1,3 @@
+[submodule "tests/fwktest"]
+	path = tests/fwktest
+	url = https://github.com/Madophs/fwktest_bash.git
