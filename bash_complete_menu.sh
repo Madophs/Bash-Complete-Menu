@@ -1,27 +1,34 @@
 #!/usr/bin/env bash
 
+__NOCURSOR='\e[?25l'           ## Make cursor invisible
+__SHOWCURSOR='\e[?25h'           ## Make cursor visible
+__CLEAR_LINE='\e[K'
+__CLEAR_2BOTTOM_SCREEN='\e[0J'
+__SAVE_CURSOR='\e7'
+__RESTORE_CURSOR='\e8'
+
 function __get_cursor_position() {
     local -n crow_ref=${1}
-    local -n crow_ref=${2}
+    local -n ccol_ref=${2}
+
     # Save current terminal settings and set raw mode, no echo
     exec < /dev/tty
     local old_stty=$(stty -g)
     stty raw -echo min 0
 
     # Request cursor position (ESC[6n)
-    printf "\\033[6n" > /dev/tty
+    printf "\e[6n" > /dev/tty
 
     # Read the response from the terminal: ESC[row;columnR
     local -a pos=()
-    local IFS=';' read -ra pos -d R
+    IFS=';' read -ra pos -d R
 
     # Restore terminal settings
     stty "${old_stty}"
 
     # Extract row and column, adjusting for 0-based indexing if needed (terminal is 1-based)
-    crow_ref="${pos[@]:0:1}"
-    crow_ref="${crow:2}" # Strip the leading "ESC["
-    ccol_ref=${pos[@]:1:1}
+    crow_ref=${pos[0]:2} # Strip the leading "ESC["
+    ccol_ref=${pos[1]}
 }
 
 function __parse_comp_input() {
@@ -59,6 +66,7 @@ function __get_command_at_cursor() {
     local -a group_char_stack=()
     local -A cmd_stack=()
     command_at_cursor=""
+    command_context='cmd'
 
     # opening cmdline arguments ⮞ $(,(,$((,((,$,${,<(,${ ,`,",
     # cmdline separators arguments ⮞ |,;,<,>,
@@ -103,12 +111,36 @@ function __get_command_at_cursor() {
                 group_char_stack+=( '$(' )
                 stack_index+=1
                 continue
-            #elif [[ "${n}" == '{' ]]
-            #then
-                #i+=1
-                #group_char_stack+=( '${' )
-                #stack_index+=1
+            elif [[ "${n}" == '{' ]]
+            then
+                i+=1
+                group_char_stack+=( '${' )
+                stack_index+=1
+                continue
+            else
+                group_char_stack+=( '$' )
+                stack_index+=1
                 #continue
+
+                for (( i+=1; i<cpos; i+=1 ))
+                do
+                    [[ "${cmdline:${i}:1}" =~ [a-zA-Z_] ]] || break
+                    cmd_stack[${stack_index}]+="${cmdline:${i}:1}"
+                done
+
+                # There's no need for iteration this variable is at the end
+                (( i >= cpos )) && break
+
+                local -i prev_stack_index=${stack_index}
+                stack_index=$(( stack_index - 1 ))
+                local open_char='$'
+                cmd_stack[${stack_index}]+="${open_char}${cmd_stack[${prev_stack_index}]}"
+                unset 'group_char_stack[-1]'
+                unset "cmd_stack[${prev_stack_index}]"
+
+                # We must continue in the current position on next iteration
+                i=$(( i - 1 ))
+                continue
             fi
         elif [[ "${c}" == '<' && "${n}" == '(' ]]
         then
@@ -131,37 +163,21 @@ function __get_command_at_cursor() {
             group_char_stack+=( '(' )
             stack_index+=1
             continue
-        elif [[ "${c}" =~ [\)\`] ]]
+        elif [[ "${c}" =~ [\)\`\}\ ] && ${#group_char_stack[@]} -gt 0 ]]
         then
-            local open_char="${group_char_stack[-1]}" close_char=""
-            case "${open_char}" in
-                '$(')
-                    close_char=')'
-                    unset 'group_char_stack[-1]'
-                    ;;
-                '${')
-                    close_char='}'
-                    unset 'group_char_stack[-1]'
-                    ;;
-                '('|'<(')
-                    close_char=')'
-                    unset 'group_char_stack[-1]'
-                    ;;
-                '`')
-                    close_char='`'
-                    unset 'group_char_stack[-1]'
-                    ;;
-                '"')
-                    close_char='"'
-                    unset 'group_char_stack[-1]'
-                    ;;
-            esac
+            local -A open_close_group_char=( ['$(']=')' ['${']='}' ['(']=')' ['<(']=')' ['`']='`' ['"']='"' ['$']=' ' )
+            local open_char="${group_char_stack[-1]}"
+            local close_char="${open_close_group_char[${open_char}]}"
+            if [[ "${c}" == "${close_char}" ]]
+            then
+                local -i prev_stack_index=${stack_index}
+                stack_index=$(( stack_index - 1 ))
+                cmd_stack[${stack_index}]+="${open_char}${cmd_stack[${prev_stack_index}]}${close_char}"
 
-            local -i prev_stack_index=${stack_index}
-            stack_index=$(( stack_index - 1 ))
-            cmd_stack[${stack_index}]+="${open_char}${cmd_stack[${prev_stack_index}]}${close_char}"
-            unset "cmd_stack[${prev_stack_index}]"
-            continue
+                unset 'group_char_stack[-1]'
+                unset "cmd_stack[${prev_stack_index}]"
+                continue
+            fi
         fi
 
         cmd_stack[${stack_index}]+="${c}"
@@ -171,6 +187,14 @@ function __get_command_at_cursor() {
     #do
         #echo "${key} ⮞ ${cmd_stack[${key}]}"
     #done
+
+    if (( ${#group_char_stack[@]} > 0 ))
+    then
+        case "${group_char_stack[-1]}" in
+            '${') command_context='var_type1' ;;
+            '$') command_context='var_type2' ;;
+        esac
+    fi
 
     # At char at cursor, if cursor at line_len will append nothing
     cmd_stack[${stack_index}]+=${cmdline:${i}:1}
@@ -194,7 +218,7 @@ function __get_command_at_cursor() {
     done
 }
 
-function get_completions() {
+function __get_completions() {
     local IFS=$' \t\n'
     local completion COMP_CWORD COMP_LINE COMP_POINT COMP_WORDS COMPREPLY=()
 
@@ -221,7 +245,10 @@ function get_completions() {
     if (( ${#COMP_WORDS[@]} == 1 ))
     then
         IFS=$'\n' # create arrays using \n as separator
-        if [[ "${main_arg}" =~ ^\$\{?[a-zA-Z_0-9]+$ ]]
+        if [[ "${command_context}" == var_type* ]]
+        then
+            COMPREPLY=( $(printf '%s\n' $(compgen -v "${main_arg}")) )
+        elif [[ "${main_arg}" =~ ^\$\{?[a-zA-Z_0-9]+$ ]]
         then
             # complete varnames
             local varname="${main_arg##*[$\{]}" # remove unwanted leading chars ${
@@ -272,49 +299,20 @@ function get_completions() {
     done
 }
 
-function __update_readline() {
+function __insert_completion_into_readline() {
     for (( i=$((READLINE_POINT-1)); i>=command_at_cursor_pos; i-=1 ))
     do
         [[ "${READLINE_LINE:${i}:1}" == " "  && "${READLINE_LINE:$(( i -1 )):1}" != '\' ]] && break
     done
 
+    local completion="${complist[${complist_index}]}"
     local -i command_at_cursor_pos_end=$(( command_at_cursor_pos + ${#command_at_cursor} ))
-    READLINE_LINE="${READLINE_LINE:0:$((i+1))}${complist[${complist_index}]}${READLINE_LINE:${command_at_cursor_pos_end}}"
-    return
-    local cchar="${READLINE_LINE:${READLINE_POINT}:1}"
-    local pchar="${READLINE_LINE:$((READLINE_POINT-1)):1}"
-    # 1.- git[''] 2.- git[' '] 3.- git add[''] repo
-    if [[ ( -z "${cchar}" || "${cchar}" == " " ) && "${pchar}" =~ [^\ ] ]]
+    if [[ "${command_context}" == "var_type1" && "${READLINE_LINE:${command_at_cursor_pos_end}:1}" != '}' ]]
     then
-        #cout debug "here"
-        for (( i=$((READLINE_POINT-1)); i>=0; i-=1 ))
-        do
-            [[ "${READLINE_LINE:${i}:1}" == " "  && "${READLINE_LINE:$(( i -1 )):1}" != '\' ]] && break
-        done
-        READLINE_LINE="${READLINE_LINE:0:$(( i+1 ))}${complist[${complist_index}]}${READLINE_LINE:${READLINE_POINT}}"
-        READLINE_POINT=${#READLINE_LINE}
-            # 4.- git [''] => git <add>
-    elif [[ -z "${cchar}" && "${pchar}" == " " ]]
-    then
-        READLINE_LINE="${READLINE_LINE}${complist[${complist_index}]}"
-        READLINE_POINT=${#READLINE_LINE}
-            # 5.- git b[r]a => git <branch>
-    elif [[ -n "${cchar}" ]]
-    then
-        for (( i=$((READLINE_POINT-1)); i>=0; i-=1 ))
-        do
-            [[ "${READLINE_LINE:${i}:1}" == " " ]] && break
-        done
-        for (( j=$((READLINE_POINT+1)); j<${#READLINE_LINE}; j+=1 ))
-        do
-            [[ "${READLINE_LINE:${j}:1}" == " " ]] && break
-        done
-        READLINE_LINE="${READLINE_LINE:0:$(( i+1 ))}${complist[${complist_index}]}${READLINE_LINE:${j}}"
-    else
-        # replace with whatever suggestion is selected
-        READLINE_LINE="${complist[${complist_index}]}"
-        READLINE_POINT=${#READLINE_LINE}
+        completion+="}"
     fi
+    READLINE_LINE="${READLINE_LINE:0:$((i+1))}${completion}${READLINE_LINE:${command_at_cursor_pos_end}}"
+    READLINE_POINT=$(( i + 1 + ${#completion} ))
     is_job_done=1
 }
 
@@ -376,13 +374,13 @@ function __input_handling() {
             READLINE_POINT=$(( READLINE_POINT - 1))
             are_completions_updated=0
             ;;
-        [a-zA-Z0-9_\/\.])
+        [a-zA-Z0-9_\/\.]) # add user input to readline
             READLINE_LINE="${READLINE_LINE:0:${READLINE_POINT}}${key}${READLINE_LINE:${READLINE_POINT}}"
             READLINE_POINT=$(( READLINE_POINT + 1))
             are_completions_updated=0
             ;;
         ""|' ')
-            __update_readline
+            __insert_completion_into_readline
             ;;
     esac
 }
@@ -420,9 +418,9 @@ function __print_suggestions() {
         if (( is_cursor_repositioned == 0 && crow > 1 ))
         then
             local -i downward_scrolls=$(( crow - 1 ))
-            printf "${RESTORE_CURSOR}"
+            printf "${__RESTORE_CURSOR}"
             printf "\e[${downward_scrolls}S\e[$(( downward_scrolls ))A"
-            printf "${SAVE_CURSOR}\n"
+            printf "${__SAVE_CURSOR}\n"
             crow=1
             is_cursor_repositioned=1
         fi
@@ -436,9 +434,9 @@ function __print_suggestions() {
             else
                 local -i downward_scrolls=$(( num_rows + BOTTOM_PADDING ))
             fi
-            printf "${RESTORE_CURSOR}"
+            printf "${__RESTORE_CURSOR}"
             printf "\e[${downward_scrolls}S\e[$(( downward_scrolls ))A"
-            printf "${SAVE_CURSOR}\n"
+            printf "${__SAVE_CURSOR}\n"
             crow=$(( crow - downward_scrolls ))
             is_cursor_repositioned=1
         fi
@@ -455,7 +453,7 @@ function __print_suggestions() {
                 printf "%-$(( (col_width+cols_padding) ))s" ${complist[j]}
             fi
         done
-        (( j+num_cols > end_index )) && printf "\n${CLEAR_LINE}" || echo
+        (( j+num_cols > end_index )) && printf "\n${__CLEAR_LINE}" || echo
     done
 }
 
@@ -471,7 +469,8 @@ function __compute_col_width() {
 }
 
 function bash_complete_menu() {
-    __get_cursor_position
+    local -i crow=0 ccol=0
+    __get_cursor_position crow ccol
 
     # Create some space if we're at the very bottom
     # scroll down to create space, them move cursor up
@@ -493,26 +492,26 @@ function bash_complete_menu() {
     local -i is_job_done=0
 
     local -i are_completions_updated=0
-    local command_at_cursor=""
+    local command_at_cursor="" command_context=""
     local -i command_at_cursor_pos=0
     local -a complist=()
-    printf "${NOCURSOR}"
+    printf "${__NOCURSOR}"
     while (( is_job_done == 0 ))
     do
         if (( ! are_completions_updated ))
         then
-            printf "${CLEAR_LINE}${CLEAR_2BOTTOM_SCREEN}"
+            printf "${__CLEAR_LINE}${__CLEAR_2BOTTOM_SCREEN}"
 
             local IFS=$'\n'
             __get_command_at_cursor "${READLINE_LINE}" ${READLINE_POINT}
-            complist=( $(get_completions "${command_at_cursor}" ))
+            complist=( $(__get_completions "${command_at_cursor}" ))
             complist_size=${#complist[@]}
             [[ ${complist_size} == 0 || "${complist[@]}" == "''" ]] && break
 
             # In a single result case, append it to user input and leave
             if (( complist_size == 1 ))
             then
-                __update_readline
+                __insert_completion_into_readline
                 break
             fi
 
@@ -520,11 +519,11 @@ function bash_complete_menu() {
             are_completions_updated=1
         fi
 
-        printf "${SAVE_CURSOR}${__user_prompt}${READLINE_LINE}\n"
+        printf "${__SAVE_CURSOR}${__user_prompt}${READLINE_LINE}\n"
         __print_suggestions
         __input_handling
-        printf "${RESTORE_CURSOR}"
+        printf "${__RESTORE_CURSOR}"
     done
-    printf "${SHOWCURSOR}${CLEAR_LINE}${CLEAR_2BOTTOM_SCREEN}"
+    printf "${__SHOWCURSOR}${__CLEAR_LINE}${__CLEAR_2BOTTOM_SCREEN}"
 }
 
