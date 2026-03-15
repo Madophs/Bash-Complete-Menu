@@ -12,8 +12,8 @@ function __get_cursor_position() {
     local -n ccol_ref=${2}
 
     # Save current terminal settings and set raw mode, no echo
-    exec < /dev/tty
-    local old_stty=$(stty -g)
+    exec 3<&0 < /dev/tty
+    local old_stty="$(stty -g)"
     stty raw -echo min 0
 
     # Request cursor position (ESC[6n)
@@ -22,6 +22,9 @@ function __get_cursor_position() {
     # Read the response from the terminal: ESC[row;columnR
     local -a pos=()
     IFS=';' read -ra pos -d R
+
+    # Restore stty input
+    exec 0<&3 3<&-
 
     # Restore terminal settings
     stty "${old_stty}"
