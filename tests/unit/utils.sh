@@ -5,7 +5,7 @@ TEST_TEMP_DIR="/tmp/test_menu_complete"
 mkdir -p "${TEST_TEMP_DIR}"
 
 function clean_test_dir() {
-    rm -rf "${TEST_TEMP_DIR}"/*
+    rm -rf "${TEST_TEMP_DIR:?}"/*
 }
 
 function create_test_file() {
@@ -51,8 +51,11 @@ function assert_bash_completions() {
     __get_command_at_cursor "${READLINE_LINE}" ${READLINE_POINT}
     complist=( $(__get_completions "${command_at_cursor}") )
     fwktest_assert_string_equals "${expected_command_at_cursor}" "${command_at_cursor}"
-    fwktest_assert_array_contains complist "${expected_value_in_completions}"
-    get_array_item_index complist complist_index "${expected_value_in_completions}"
+    if [[ "${expected_value_in_completions}" != '' ]]
+    then
+        fwktest_assert_array_contains complist "${expected_value_in_completions}"
+        get_array_item_index complist complist_index "${expected_value_in_completions}"
+    fi
     __insert_completion_into_readline
     fwktest_assert_string_equals "${READLINE_LINE}" "${expected_readline_completion}"
 }
