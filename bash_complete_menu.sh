@@ -75,19 +75,38 @@ function __get_command_at_cursor() {
     # cmdline separators arguments ⮞ |,;,<,>,
 
     local -i i=0
-    local -i cmd_base=0
     local -i stack_index=0
     for (( i=0; i<cpos; i+=1 ))
     do
         local c="${cmdline:${i}:1}"
         local n="${cmdline:$((i+1)):1}"
-        if [[ "${c}" == '\' ]]
+        if [[ "${c}" == "'" || (${#group_char_stack[@]} -ne 0 &&  "${group_char_stack[-1]}" == "'") ]]
+        then
+            if [[ ${#group_char_stack[@]} -eq 0 || "${group_char_stack[-1]}" != "'" ]]
+            then
+                stack_index+=1
+                group_char_stack+=( "${c}" )
+                continue
+            fi
+
+            if [[ "${c}" != "'" ]]
+            then
+                cmd_stack[${stack_index}]+="${c}"
+                continue
+            else
+                cmd_stack[${stack_index}]+="${c}"
+                cmd_stack[$((stack_index-1))]="${cmd_stack[${stack_index}]}${c}"
+                unset "cmd_stack[${stack_index}]"
+                stack_index=$(( stack_index - 1 ))
+                continue
+            fi
+        elif [[ "${c}" == '\' ]]
         then
             cmd_stack[${stack_index}]+="${c}"
             cmd_stack[${stack_index}]+="${n}"
             i+=1
             continue
-        elif [[ "${c}" =~ [\|]|[\;] ]]
+        elif [[ "${c}" =~ [\|\;\&] ]]
         then
             # No open group chars means that this an entire new command
             # just separated by a delimiter, this new command will be stored in the next stack's index
@@ -98,9 +117,13 @@ function __get_command_at_cursor() {
                 continue
             fi
 
-            # Open groups chars ⟦$(,<(,`⟧ indicates that this is a subcommand
-            # separated a by a delimiter ∴ will be treated as such
-            if [[ "${group_char_stack[-1]}" =~ [$][\(]|[\<][\(]|[\`] ]]
+            if [[ "${c}" == "${group_char_stack[-1]}" ]]
+            then
+                cmd_stack[$((stack_index-1))]+="${c}"
+                continue
+            fi
+
+            if [[ "${group_char_stack[-1]}" != '"' ]]
             then
                 cmd_stack[${stack_index}]+="${c}"
                 stack_index+=1
@@ -156,17 +179,17 @@ function __get_command_at_cursor() {
             group_char_stack+=( '`' )
             stack_index+=1
             continue
-        #elif [[ "${c}" == '"' && ( ${#group_char_stack[@]} == 0 || "${group_char_stack[-1]}" != '"' ) ]]
-        #then
-            #group_char_stack+=( '"' )
-            #stack_index+=1
-            #continue
+        elif [[ "${c}" == '"' && ( ${#group_char_stack[@]} == 0 || "${group_char_stack[-1]}" != '"' ) ]]
+        then
+            group_char_stack+=( '"' )
+            stack_index+=1
+            continue
         elif [[ "${c}" == '(' && ( ${#group_char_stack[@]} == 0 || "${group_char_stack[-1]}" != ')' ) ]]
         then
             group_char_stack+=( '(' )
             stack_index+=1
             continue
-        elif [[ "${c}" =~ [\)\`\}\ ] && ${#group_char_stack[@]} -gt 0 ]]
+        elif [[ "${c}" =~ [\)\`\}\ \"] && ${#group_char_stack[@]} -gt 0 ]]
         then
             local -A open_close_group_char=( ['$(']=')' ['${']='}' ['(']=')' ['<(']=')' ['`']='`' ['"']='"' ['$']=' ' )
             local open_char="${group_char_stack[-1]}"
@@ -195,7 +218,9 @@ function __get_command_at_cursor() {
     then
         case "${group_char_stack[-1]}" in
             '${') command_context='var_type1' ;;
-            '$') command_context='var_type2' ;;
+            '$')  command_context='var_type2' ;;
+            "'")  command_context='literal_string' ;;
+            '"')  command_context='string' ;;
         esac
     fi
 
@@ -209,8 +234,8 @@ function __get_command_at_cursor() {
 
     # trim leading spaces
     command_at_cursor="${command_at_cursor#${command_at_cursor%%[![:space:]]*}}"
-    local -i leading_spaces_count=$(( ${#cmd_stack[${stack_index}]} - ${#command_at_cursor} ))
-    command_at_cursor_pos+=leading_spaces_count
+    # skip leading spaces
+    command_at_cursor_pos+=$(( ${#cmd_stack[${stack_index}]} - ${#command_at_cursor} ))
 
     [[ "${cmdline:${i}:1}" =~ [\ \(\$\}\)\"\`] ]] && return
 
@@ -222,6 +247,8 @@ function __get_command_at_cursor() {
 }
 
 function __get_completions() {
+    [[ "${command_context}" == "literal_string" ]] && return
+
     local IFS=$' \t\n'
     local completion COMP_CWORD COMP_LINE COMP_POINT COMP_WORDS COMPREPLY=()
 
@@ -267,6 +294,9 @@ function __get_completions() {
             # compgen -c queries all commands in $PATH and -d directories in $PWD
             COMPREPLY=( $(compgen -d -c "${main_arg}") )
         fi
+    elif [[ "${command_context}" == "string" ]]
+    then
+        COMPREPLY=( "$(compgen -d "${COMP_WORDS[*]}")" )
     else
         # determine completion function
         completion=$(complete -p "${main_arg}" 2>/dev/null | awk '{print $(NF-1)}')
@@ -288,31 +318,31 @@ function __get_completions() {
         ${completion} 2> /dev/null
     fi
 
-    IFS=$'\n'
-    COMPREPLY=( $(printf "%s\n" "${COMPREPLY[@]}" | sort -u) )
-
-    # print completions to stdout
-    local comp
-    for comp in "${COMPREPLY[@]}"
-    do
-        if [[ "${comp: -1}" == " " ]]
-        then
-            comp="${comp:0: -1}"
-            printf '%s\n' "${comp// /\\ } "
-        else
-            printf '%s\n' "${comp// /\\ }"
-        fi
-    done
+    if [[ "${command_context}" == "string" ]]
+    then
+        printf "%s\n" "${COMPREPLY[@]}" | sort -u
+    else
+        printf "%s\n" "${COMPREPLY[@]}" | sort -u | sed 's/ \([^ .]\)/\\ \1/g'
+    fi
 }
 
 function __insert_completion_into_readline() {
-    for (( i=$((READLINE_POINT-1)); i>=command_at_cursor_pos; i-=1 ))
+    local completion="${complist[${complist_index}]}"
+    [[ -z "${completion}" || "${completion}" == '' ]] && return
+
+    local -i i=$((READLINE_POINT-1))
+    local -i command_at_cursor_pos_end=$(( command_at_cursor_pos + ${#command_at_cursor} ))
+
+    if [[ "${command_context}" == "string" ]]
+    then
+        i=command_at_cursor_pos
+    fi
+
+    for (( ; i>=command_at_cursor_pos; i-=1 ))
     do
         [[ "${READLINE_LINE:${i}:1}" == " "  && "${READLINE_LINE:$(( i -1 )):1}" != '\' ]] && break
     done
 
-    local completion="${complist[${complist_index}]}"
-    local -i command_at_cursor_pos_end=$(( command_at_cursor_pos + ${#command_at_cursor} ))
     if [[ "${command_context}" == "var_type1" && "${READLINE_LINE:${command_at_cursor_pos_end}:1}" != '}' ]]
     then
         completion+="}"
@@ -510,7 +540,6 @@ function bash_complete_menu() {
         then
             echo -ne "${__CLEAR_LINE}${__CLEAR_2BOTTOM_SCREEN}"
 
-            local IFS=$'\n'
             __get_command_at_cursor "${READLINE_LINE}" ${READLINE_POINT}
             complist=( $(__get_completions "${command_at_cursor}" ))
             complist_size=${#complist[@]}
@@ -523,7 +552,9 @@ function bash_complete_menu() {
                 break
             fi
 
-            __compute_col_width
+            #__compute_col_width
+            col_width=$(printf '%s\n' "${complist[@]}" | wc -L)
+            col_width+=2
             are_completions_updated=1
         fi
 
