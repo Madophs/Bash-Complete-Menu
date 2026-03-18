@@ -21,7 +21,7 @@ function __get_cursor_position() {
 
     # Read the response from the terminal: ESC[row;columnR
     local -a pos=()
-    IFS=';' read -ra pos -d R
+    IFS=';' read -d 'R' -ra pos
 
     # Restore stty input
     exec 0<&3 3<&-
@@ -205,7 +205,7 @@ function __get_command_at_cursor() {
 
     local -i is_cursor_mid_line=1
     (( i >= line_len )) && is_cursor_mid_line=0
-    command_at_cursor_pos=$(( i - ${#command_at_cursor} + ${is_cursor_mid_line} ))
+    command_at_cursor_pos=$(( i - ${#command_at_cursor} + is_cursor_mid_line ))
 
     # trim leading spaces
     command_at_cursor="${command_at_cursor#${command_at_cursor%%[![:space:]]*}}"
@@ -236,7 +236,7 @@ function __get_completions() {
     __parse_comp_input COMP_WORDS "${COMP_LINE}"
 
     # add '' to COMP_WORDS if the last character of the command line is a space
-    [[ ${COMP_LINE[@]: -1} = ' ' ]] && COMP_WORDS+=('')
+    [[ ${COMP_LINE[*]: -1} == ' ' ]] && COMP_WORDS+=('')
 
     # index of the last word
     COMP_CWORD=$(( ${#COMP_WORDS[@]} - 1 ))
@@ -245,18 +245,21 @@ function __get_completions() {
     local main_arg="${COMP_WORDS[0]}"
 
     # for single/partial cmds queries are done through compgen
-    if (( ${#COMP_WORDS[@]} == 1 ))
+    if [[ ${#COMP_WORDS[@]} == 0 ]]
+    then
+        COMPREPLY=( "$(compgen -d)" )
+    elif (( ${#COMP_WORDS[@]} == 1 ))
     then
         IFS=$'\n' # create arrays using \n as separator
         if [[ "${command_context}" == var_type* ]]
         then
-            COMPREPLY=( $(printf '%s\n' $(compgen -v "${main_arg}")) )
+            COMPREPLY=( $(printf '%s\n' "$(compgen -v "${main_arg}")") )
         elif [[ "${main_arg}" =~ ^\$\{?[a-zA-Z_0-9]+$ ]]
         then
             # complete varnames
             local varname="${main_arg##*[$\{]}" # remove unwanted leading chars ${
-            COMPREPLY=( $(printf '${%s}\n' $(compgen -v "${varname}")) )
-        elif [[ "${main_arg}" =~ ^\$\{?[a-zA-Z_0-9]+\}?\/$ ]]
+            COMPREPLY=( $(printf '${%s}\n' "$(compgen -v "${varname}")") )
+        elif [[ "${main_arg}" =~ ^\$\{?[a-zA-Z_0-9]+\}?\/$ || "${command_context}" == "string" ]]
         then
             # variable with a slash will trigger directory completion
             COMPREPLY=( $(compgen -d "${main_arg}") )
@@ -321,11 +324,12 @@ function __insert_completion_into_readline() {
 
 function __input_handling() {
     # Read a single character
-    IFS= read -s -n 1 key
+    local IFS=
+    read -r -s -n 1 key
     # Capture trailing characters
-    read -s -N 1 -t 0.0001 k1
-    read -s -N 1 -t 0.0001 k2
-    read -s -N 1 -t 0.0001 k3
+    read -r -s -N 1 -t 0.0001 k1
+    read -r -s -N 1 -t 0.0001 k2
+    read -r -s -N 1 -t 0.0001 k3
     key+=${k1}${k2}${k3}
     case "${key}" in
         $'\e[A') # Move Up
@@ -377,7 +381,7 @@ function __input_handling() {
             READLINE_POINT=$(( READLINE_POINT - 1))
             are_completions_updated=0
             ;;
-        [a-zA-Z0-9_\/\.]) # add user input to readline
+        [a-zA-Z0-9_/\.]) # add user input to readline
             READLINE_LINE="${READLINE_LINE:0:${READLINE_POINT}}${key}${READLINE_LINE:${READLINE_POINT}}"
             READLINE_POINT=$(( READLINE_POINT + 1))
             are_completions_updated=0
@@ -421,9 +425,9 @@ function __print_suggestions() {
         if (( is_cursor_repositioned == 0 && crow > 1 ))
         then
             local -i downward_scrolls=$(( crow - 1 ))
-            printf "${__RESTORE_CURSOR}"
-            printf "\e[${downward_scrolls}S\e[$(( downward_scrolls ))A"
-            printf "${__SAVE_CURSOR}\n"
+            echo -ne "${__RESTORE_CURSOR}"
+            echo -ne "\e[${downward_scrolls}S\e[$(( downward_scrolls ))A"
+            echo -e "${__SAVE_CURSOR}"
             crow=1
             is_cursor_repositioned=1
         fi
@@ -437,9 +441,9 @@ function __print_suggestions() {
             else
                 local -i downward_scrolls=$(( num_rows + BOTTOM_PADDING ))
             fi
-            printf "${__RESTORE_CURSOR}"
-            printf "\e[${downward_scrolls}S\e[$(( downward_scrolls ))A"
-            printf "${__SAVE_CURSOR}\n"
+            echo -ne "${__RESTORE_CURSOR}"
+            echo -ne "\e[${downward_scrolls}S\e[$(( downward_scrolls ))A"
+            echo -e "${__SAVE_CURSOR}"
             crow=$(( crow - downward_scrolls ))
             is_cursor_repositioned=1
         fi
@@ -451,12 +455,12 @@ function __print_suggestions() {
         do
             if (( complist_index == j ))
             then
-                printf "${INVERT}%-$(( (col_width+cols_padding) ))s${INVERT_BLK}" ${complist[j]}
+                printf "${INVERT}%-$((col_width+cols_padding))s${INVERT_BLK}" "${complist[j]}"
             else
-                printf "%-$(( (col_width+cols_padding) ))s" ${complist[j]}
+                printf "%-$((col_width+cols_padding))s" "${complist[j]}"
             fi
         done
-        (( j+num_cols > end_index )) && printf "\n${__CLEAR_LINE}" || echo
+        (( j+num_cols > end_index )) && echo -ne "\n${__CLEAR_LINE}" || echo
     done
 }
 
@@ -482,7 +486,7 @@ function bash_complete_menu() {
     # Useful margin to manipulate cursor downwards motion (\n or \e[B)
     # as they don't have any affect if bottom lines are already reached
     local  -i BOTTOM_PADDING=1
-    local __user_prompt="$( printf "${PS1@P}" | tail -n 1)"
+    local __user_prompt="$( echo -ne "${PS1@P}" | tail -n 1)"
 
     local -i complist_size=0
     local -i start_index=0 end_index=0
@@ -498,18 +502,19 @@ function bash_complete_menu() {
     local command_at_cursor="" command_context=""
     local -i command_at_cursor_pos=0
     local -a complist=()
-    printf "${__NOCURSOR}"
+    echo -ne "${__NOCURSOR}"
+    local IFS=$'\n'
     while (( is_job_done == 0 ))
     do
         if (( ! are_completions_updated ))
         then
-            printf "${__CLEAR_LINE}${__CLEAR_2BOTTOM_SCREEN}"
+            echo -ne "${__CLEAR_LINE}${__CLEAR_2BOTTOM_SCREEN}"
 
             local IFS=$'\n'
             __get_command_at_cursor "${READLINE_LINE}" ${READLINE_POINT}
             complist=( $(__get_completions "${command_at_cursor}" ))
             complist_size=${#complist[@]}
-            [[ ${complist_size} == 0 || "${complist[@]}" == "''" ]] && break
+            [[ ${complist_size} == 0 || "${complist[*]}" == "''" ]] && break
 
             # In a single result case, append it to user input and leave
             if (( complist_size == 1 ))
@@ -522,11 +527,12 @@ function bash_complete_menu() {
             are_completions_updated=1
         fi
 
-        printf "${__SAVE_CURSOR}${__user_prompt}${READLINE_LINE}\n"
+        echo -e "${__SAVE_CURSOR}${__user_prompt}${READLINE_LINE}"
         __print_suggestions
         __input_handling
-        printf "${__RESTORE_CURSOR}"
+        echo -ne "${__RESTORE_CURSOR}"
     done
-    printf "${__SHOWCURSOR}${__CLEAR_LINE}${__CLEAR_2BOTTOM_SCREEN}"
+    echo -ne "${__SHOWCURSOR}${__CLEAR_LINE}${__CLEAR_2BOTTOM_SCREEN}"
+    IFS=$' \t\n'
 }
 
