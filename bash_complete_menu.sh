@@ -6,6 +6,9 @@ __CLEAR_LINE='\e[K'
 __CLEAR_2BOTTOM_SCREEN='\e[0J'
 __SAVE_CURSOR='\e7'
 __RESTORE_CURSOR='\e8'
+__INVERT='\e[7m'
+__INVERT_BLK='\e[27m'
+
 
 function __get_cursor_position() {
     local -n crow_ref=${1}
@@ -485,7 +488,7 @@ function __print_suggestions() {
         do
             if (( complist_index == j ))
             then
-                printf "${INVERT}%-$((col_width+cols_padding))s${INVERT_BLK}" "${complist[j]}"
+                printf "${__INVERT}%-$((col_width+cols_padding))s${__INVERT_BLK}" "${complist[j]}"
             else
                 printf "%-$((col_width+cols_padding))s" "${complist[j]}"
             fi
