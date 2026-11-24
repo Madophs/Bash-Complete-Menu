@@ -9,7 +9,6 @@ __RESTORE_CURSOR='\e8'
 __INVERT='\e[7m'
 __INVERT_BLK='\e[27m'
 
-
 function __get_cursor_position() {
     local -n crow_ref=${1}
     local -n ccol_ref=${2}
@@ -509,6 +508,8 @@ function __compute_col_width() {
 }
 
 function bash_complete_menu() {
+    trap 'trap - SIGINT; is_job_done=1; return' SIGINT
+
     local -i crow=0 ccol=0
     __get_cursor_position crow ccol
 
@@ -519,7 +520,7 @@ function bash_complete_menu() {
     # Useful margin to manipulate cursor downwards motion (\n or \e[B)
     # as they don't have any affect if bottom lines are already reached
     local  -i BOTTOM_PADDING=1
-    local __user_prompt="$( echo -ne "${PS1@P}" | tail -n 1)"
+    local -r user_prompt="$( echo -ne "${PS1@P}" | tail -n 1)"
 
     local -i complist_size=0
     local -i start_index=0 end_index=0
@@ -568,5 +569,6 @@ function bash_complete_menu() {
     done
     echo -ne "${__SHOWCURSOR}${__CLEAR_LINE}${__CLEAR_2BOTTOM_SCREEN}"
     IFS=$' \t\n'
+    trap - SIGINT
 }
 
