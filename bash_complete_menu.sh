@@ -409,9 +409,14 @@ function __input_handling() {
             is_job_done=1
             ;;
         $'\x7f') # backspace
-            READLINE_LINE="${READLINE_LINE:0:$((READLINE_POINT-1))}${READLINE_LINE:$((READLINE_POINT+1))}"
+            READLINE_LINE="${READLINE_LINE:0:$((READLINE_POINT-1))}${READLINE_LINE:$((READLINE_POINT))}"
             READLINE_POINT=$(( READLINE_POINT - 1))
             are_completions_updated=0
+            if (( READLINE_POINT <= 0 ))
+            then
+                # we deleted the entire command no need for more completions
+                is_job_done=1
+            fi
             ;;
         [a-zA-Z0-9_/\.]) # add user input to readline
             READLINE_LINE="${READLINE_LINE:0:${READLINE_POINT}}${key}${READLINE_LINE:${READLINE_POINT}}"

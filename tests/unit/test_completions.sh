@@ -43,6 +43,46 @@ function test_cd_completion_with_spaces() {
     popd &> /dev/null
 }
 
+function test_cd_dir_backspace_completion() {
+    pushd "${TEST_TEMP_DIR}" &> /dev/null || { echo "Failed to pushd \${TEST_TEMP_DIR}"; exit 1; }
+    clean_test_dir
+    create_test_dir 'mega'{0..2}
+    create_test_dir 'mga'{0..2}
+    local READLINE_LINE='cd me'
+    local -i READLINE_POINT=${4:-${#READLINE_LINE}}
+    local -a complist=()
+    __get_command_at_cursor "${READLINE_LINE}" ${READLINE_POINT}
+    mapfile -t complist < <( __get_completions "${command_at_cursor}" )
+    fwktest_assert_string_equals "${complist[*]}" "mega0 mega1 mega2"
+    # Deleting the last character yields "cd m"
+    __input_handling <<< $'\x7f' # backspace
+    __get_command_at_cursor "${READLINE_LINE}" ${READLINE_POINT}
+    mapfile -t complist < <( __get_completions "${command_at_cursor}" )
+    fwktest_assert_string_equals "${READLINE_LINE}" "cd m"
+    fwktest_assert_string_equals "${complist[*]}" "mega0 mega1 mega2 mga0 mga1 mga2"
+    popd &> /dev/null || { echo "Failed to popd \${TEST_TEMP_DIR}"; exit 1; }
+}
+
+function test_cd_dir_backspace_in_the_middle_completion() {
+    pushd "${TEST_TEMP_DIR}" &> /dev/null || { echo "Failed to pushd \${TEST_TEMP_DIR}"; exit 1; }
+    clean_test_dir
+    create_test_dir 'mega'{0..2}
+    create_test_dir 'mga'{0..2}
+    local READLINE_LINE='cd meg'
+    local -i READLINE_POINT=5 # Cursor at «cd me|g»
+    local -a complist=()
+    __get_command_at_cursor "${READLINE_LINE}" ${READLINE_POINT}
+    mapfile -t complist < <( __get_completions "${command_at_cursor}" )
+    fwktest_assert_string_equals "${complist[*]}" "mega0 mega1 mega2"
+    # Deleting "e" yields "cd mg" ∴ filtering out mega* directories
+    __input_handling <<< $'\x7f' # backspace
+    __get_command_at_cursor "${READLINE_LINE}" ${READLINE_POINT}
+    mapfile -t complist < <( __get_completions "${command_at_cursor}" )
+    fwktest_assert_string_equals "${READLINE_LINE}" "cd mg"
+    fwktest_assert_string_equals "${complist[*]}" "mga0 mga1 mga2"
+    popd &> /dev/null || { echo "Failed to popd \${TEST_TEMP_DIR}"; exit 1; }
+}
+
 function test_single_command_completion() {
     local READLINE_LINE="" READLINE_EXPE=""
     READLINE_LINE='gr'
