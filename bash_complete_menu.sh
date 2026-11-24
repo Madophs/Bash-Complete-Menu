@@ -373,11 +373,7 @@ function __input_handling() {
     fi
     case "${key}" in
         $'\e[A') # Move Up
-            case "${key}" in
-                u*) complist_index=$(( complist_index - (num_cols * scroll_slice) )) ;;
-                *) complist_index=$(( complist_index - num_cols )) ;;
-            esac
-
+            complist_index=$(( complist_index - num_cols ))
             if (( complist_index < 0 ))
             then
                 complist_index+=num_cols
@@ -390,11 +386,7 @@ function __input_handling() {
             fi
             ;;
         $'\e[B') # Move Down: down arrow
-            case "${key}" in
-                d*) complist_index+=$(( num_cols * scroll_slice )) ;;
-                *) complist_index+=num_cols ;;
-            esac
-
+            complist_index+=num_cols
             if (( complist_index >= complist_size ))
             then
                 complist_index=$(( complist_index % num_cols ))
