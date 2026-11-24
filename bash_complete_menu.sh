@@ -413,7 +413,7 @@ function __input_handling() {
         $'\e[F') # Move to last item
             complist_index=$(( complist_size - 1))
             ;;
-        $'') # Quit: ESC
+        $'\e') # Quit: ESC
             is_job_done=1
             ;;
         $'\x7f') # backspace
