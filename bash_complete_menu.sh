@@ -361,12 +361,16 @@ function __insert_completion_into_readline() {
 function __input_handling() {
     # Read a single character
     local IFS=
+    local key k1 k2 k3
     read -r -s -n 1 key
     # Capture trailing characters
-    read -r -s -N 1 -t 0.0001 k1
-    read -r -s -N 1 -t 0.0001 k2
-    read -r -s -N 1 -t 0.0001 k3
-    key+=${k1}${k2}${k3}
+    if [[ "${key}" == $'\e' ]]
+    then
+        read -r -s -N 1 -t 0.0001 k1
+        read -r -s -N 1 -t 0.0001 k2
+        read -r -s -N 1 -t 0.0001 k3
+        key+=${k1}${k2}${k3}
+    fi
     case "${key}" in
         $'\e[A') # Move Up
             case "${key}" in
