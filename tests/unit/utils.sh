@@ -43,7 +43,7 @@ function assert_bash_completions() {
     local expected_value_in_completions="${2}"
     local expected_readline_completion="${3}"
     local -i READLINE_POINT=${4:-${#READLINE_LINE}}
-    local command_at_cursor=""
+    local command_at_cursor="" command_context=""
     local -i command_at_cursor_pos=0
     local -a complist=()
     local -i complist_index=0

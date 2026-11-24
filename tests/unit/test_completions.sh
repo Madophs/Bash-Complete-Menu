@@ -48,6 +48,7 @@ function test_cd_dir_backspace_completion() {
     clean_test_dir
     create_test_dir 'mega'{0..2}
     create_test_dir 'mga'{0..2}
+    local command_at_cursor="" command_context=""
     local READLINE_LINE='cd me'
     local -i READLINE_POINT=${4:-${#READLINE_LINE}}
     local -a complist=()
@@ -68,6 +69,7 @@ function test_cd_dir_backspace_in_the_middle_completion() {
     clean_test_dir
     create_test_dir 'mega'{0..2}
     create_test_dir 'mga'{0..2}
+    local command_at_cursor="" command_context=""
     local READLINE_LINE='cd meg'
     local -i READLINE_POINT=5 # Cursor at «cd me|g»
     local -a complist=()
