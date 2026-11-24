@@ -131,7 +131,7 @@ function __get_command_at_cursor() {
                 stack_index+=1
                 continue
             fi
-        elif [[ "${c}" =~ [$] ]]
+        elif [[ "${c}" == '$' ]]
         then
             if [[ "${n}" == '(' ]]
             then
@@ -314,16 +314,20 @@ function __get_completions() {
         fi
 
         # ensure completion was detected
-        [[ -n ${completion} ]] || return 1
-
-        # execute completion function
-        ${completion} 2> /dev/null
+        if [[ -n "${completion}" && "${completion}" != "_comp_complete_minimal" ]]
+        then
+            # execute completion function
+            ${completion} 2> /dev/null
+        else
+            COMPREPLY=( "$(compgen -f "${COMP_WORDS[*]:1}")" )
+        fi
     fi
 
     if [[ "${command_context}" == "string" ]]
     then
         printf "%s\n" "${COMPREPLY[@]}" | sort -u
     else
+        # current command is not quoted ∴ escape spaces
         printf "%s\n" "${COMPREPLY[@]}" | sort -u | sed 's/ \([^ .]\)/\\ \1/g'
     fi
 }
@@ -545,7 +549,7 @@ function bash_complete_menu() {
             echo -ne "${__CLEAR_LINE}${__CLEAR_2BOTTOM_SCREEN}"
 
             __get_command_at_cursor "${READLINE_LINE}" ${READLINE_POINT}
-            complist=( $(__get_completions "${command_at_cursor}" ))
+            complist=( $(__get_completions "${command_at_cursor}") )
             complist_size=${#complist[@]}
             [[ ${complist_size} == 0 || "${complist[*]}" == "''" ]] && break
 
@@ -562,7 +566,7 @@ function bash_complete_menu() {
             are_completions_updated=1
         fi
 
-        echo -e "${__SAVE_CURSOR}${__user_prompt}${READLINE_LINE}"
+        echo -e "${__SAVE_CURSOR}${user_prompt}${READLINE_LINE}"
         __print_suggestions
         __input_handling
         echo -ne "${__RESTORE_CURSOR}"
