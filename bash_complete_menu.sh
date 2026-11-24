@@ -42,7 +42,7 @@ function __parse_comp_input() {
     local raw_input="${*}"
     local -i input_len=${#raw_input}
     local -i is_escaped_char=0
-    local l='' token=''
+    local token=''
     for (( i=0; i<input_len; i+=1 ))
     do
         for (( ; i<input_len; i+=1 ))
@@ -235,7 +235,7 @@ function __get_command_at_cursor() {
     command_at_cursor_pos=$(( i - ${#command_at_cursor} + is_cursor_mid_line ))
 
     # trim leading spaces
-    command_at_cursor="${command_at_cursor#${command_at_cursor%%[![:space:]]*}}"
+    command_at_cursor="${command_at_cursor#"${command_at_cursor%%[![:space:]]*}"}"
     # skip leading spaces
     command_at_cursor_pos+=$(( ${#cmd_stack[${stack_index}]} - ${#command_at_cursor} ))
 
