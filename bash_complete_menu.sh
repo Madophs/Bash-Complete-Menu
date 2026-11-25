@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 
-__NOCURSOR='\e[?25l'           ## Make cursor invisible
-__SHOWCURSOR='\e[?25h'           ## Make cursor visible
+__NOCURSOR='\e[?25l'            ## Make cursor invisible
+__SHOWCURSOR='\e[?25h'          ## Make cursor visible
 __CLEAR_LINE='\e[K'
 __CLEAR_2BOTTOM_SCREEN='\e[0J'
 __SAVE_CURSOR='\e7'
 __RESTORE_CURSOR='\e8'
 __INVERT='\e[7m'
 __INVERT_BLK='\e[27m'
+
+: "${BASH_COMP_INPUT_TIMEOUT:=0.05}"        # 50ms is enough room to capture special chars on low end PCs
 
 function __get_cursor_position() {
     local -n crow_ref=${1}
@@ -361,15 +363,13 @@ function __insert_completion_into_readline() {
 function __input_handling() {
     # Read a single character
     local IFS=
-    local key k1 k2 k3
+    local key key2
     read -r -s -n 1 key
-    # Capture trailing characters
+    # Capture trailing characters (arrow keys/Home/End)
     if [[ "${key}" == $'\e' ]]
     then
-        read -r -s -N 1 -t 0.0001 k1
-        read -r -s -N 1 -t 0.0001 k2
-        read -r -s -N 1 -t 0.0001 k3
-        key+=${k1}${k2}${k3}
+        read -r -s -N 2 -t "${BASH_COMP_INPUT_TIMEOUT}" key2
+        key+=${key2}
     fi
     case "${key}" in
         $'\e[A') # Move Up
@@ -399,10 +399,10 @@ function __input_handling() {
         $'\e[C'|$'\t') # Move right: <-,tab
             complist_index=$(( (complist_index + 1) % complist_size ))
             ;;
-        $'\e[H') # Go to menu's first item
+        $'\e[H') # Home: menu's beginning
             complist_index=0
             ;;
-        $'\e[F') # Move to last item
+        $'\e[F') # End: menu's end
             complist_index=$(( complist_size - 1))
             ;;
         $'\e') # Quit: ESC
@@ -524,7 +524,7 @@ function bash_complete_menu() {
 
     # Useful margin to manipulate cursor downwards motion (\n or \e[B)
     # as they don't have any affect if bottom lines are already reached
-    local  -i BOTTOM_PADDING=1
+    local -i BOTTOM_PADDING=1
     local -r user_prompt="$( echo -ne "${PS1@P}" | tail -n 1)"
 
     local -i complist_size=0
