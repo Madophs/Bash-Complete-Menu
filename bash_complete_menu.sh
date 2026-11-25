@@ -408,7 +408,7 @@ function __input_handling() {
         $'\e') # Quit: ESC
             is_job_done=1
             ;;
-        $'\x7f') # backspace
+        $'\x7f'|$'\b') # backspace
             READLINE_LINE="${READLINE_LINE:0:$((READLINE_POINT-1))}${READLINE_LINE:$((READLINE_POINT))}"
             READLINE_POINT=$(( READLINE_POINT - 1))
             are_completions_updated=0
