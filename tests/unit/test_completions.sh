@@ -245,6 +245,27 @@ function test_double_single_quotes() {
     READLINE_LINE='echo "$(git stat'
     READLINE_EXPE='echo "$(git status'
     assert_bash_completions "git stat" 'status' "${READLINE_EXPE}"
+
+    READLINE_LINE='echo "hello (world) $BASH_VER'
+    READLINE_EXPE='echo "hello (world) $BASH_VERSION'
+    assert_bash_completions 'BASH_VER' 'BASH_VERSION' "${READLINE_EXPE}"
+
+    READLINE_LINE='echo "hello (c'
+    READLINE_EXPE='echo "hello (c'
+    assert_bash_completions 'hello (c' '' "${READLINE_EXPE}"
+
+    READLINE_LINE='echo "bash --version \"${BASH'
+    READLINE_EXPE='echo "bash --version \"${BASH_VERSION}'
+    assert_bash_completions 'BASH' 'BASH_VERSION' "${READLINE_EXPE}" 28
+
+    READLINE_LINE='echo "bash --version \"'
+    READLINE_EXPE='echo "bash --version \"'
+    assert_bash_completions 'bash --version \"' '' "${READLINE_EXPE}" 22 'regular_string'
+
+    READLINE_LINE='echo "bash --version "'
+    READLINE_EXPE='echo "bash --version "'
+    assert_bash_completions 'echo "bash --version "' '' "${READLINE_EXPE}" 22 'cmd'
+}
 }
 
 # The following tests requires execution in interactive mode

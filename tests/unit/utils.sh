@@ -43,6 +43,7 @@ function assert_bash_completions() {
     local expected_value_in_completions="${2}"
     local expected_readline_completion="${3}"
     local -i READLINE_POINT=${4:-${#READLINE_LINE}}
+    local expected_command_context="${5}"
     local command_at_cursor="" command_context=""
     local -i command_at_cursor_pos=0
     local -a complist=()
@@ -55,6 +56,10 @@ function assert_bash_completions() {
     then
         fwktest_assert_array_contains complist "${expected_value_in_completions}"
         get_array_item_index complist complist_index "${expected_value_in_completions}"
+    fi
+    if [[ "${expected_command_context}" != "" ]]
+    then
+        fwktest_assert_string_equals "${command_context}" "${expected_command_context}"
     fi
     __insert_completion_into_readline
     fwktest_assert_string_equals "${READLINE_LINE}" "${expected_readline_completion}"

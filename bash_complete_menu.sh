@@ -187,7 +187,7 @@ function __get_command_at_cursor() {
             group_char_stack+=( '"' )
             (( ++stack_index ))
             continue
-        elif [[ "${c}" == '(' && ( ${#group_char_stack[@]} == 0 || "${group_char_stack[-1]}" != ')' ) ]]
+        elif [[ "${c}" == '(' && ( ${#group_char_stack[@]} == 0 || ( "${group_char_stack[-1]}" != ')' && "${group_char_stack[-1]}" != '"') ) ]]
         then
             group_char_stack+=( '(' )
             (( ++stack_index ))
