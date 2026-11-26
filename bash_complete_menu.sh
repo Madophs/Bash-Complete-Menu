@@ -293,11 +293,11 @@ function __get_completions() {
             COMPREPLY=( $(printf '${%s}\n' "$(compgen -v "${varname}")") )
         elif [[ "${command_context}" == "regular_string" ]]
         then
-            # variable with a slash will trigger directory completion
-            COMPREPLY=( $(compgen -d "${main_arg}") )
+            # variable with a slash will trigger directory and command completion
+            COMPREPLY=( $(compgen -c "${main_arg}") )
         else
             # compgen -c queries all commands in $PATH and -d directories in $PWD
-            COMPREPLY=( $(compgen -d -c "${main_arg}") )
+            COMPREPLY=( $(compgen -c "${main_arg//\\/}") )
         fi
     elif [[ "${command_context}" == "regular_string" ]]
     then
