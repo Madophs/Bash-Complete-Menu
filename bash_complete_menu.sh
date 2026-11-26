@@ -268,7 +268,10 @@ function __get_completions() {
     __parse_comp_input COMP_WORDS "${COMP_LINE}"
 
     # add '' to COMP_WORDS if the last character of the command line is a space
-    [[ ${COMP_LINE[*]: -1} == ' ' ]] && COMP_WORDS+=('')
+    if [[ ${COMP_LINE[*]: -1} == ' ' && ${COMP_LINE[*]: -2} != '\ ' ]]
+    then
+        COMP_WORDS+=('')
+    fi
 
     # index of the last word
     COMP_CWORD=$(( ${#COMP_WORDS[@]} - 1 ))
