@@ -331,7 +331,7 @@ function __get_completions() {
         printf "%s\n" "${COMPREPLY[@]}" | sort -u
     else
         # current command is not quoted ∴ escape spaces
-        printf "%s\n" "${COMPREPLY[@]}" | sort -u | sed 's/ \([^ .]\)/\\ \1/g'
+        printf "%s\n" "${COMPREPLY[@]}" | sort -u | sed 's/\([^\]\) \([^ .]\)/\1\\ \2/g'
     fi
 }
 
