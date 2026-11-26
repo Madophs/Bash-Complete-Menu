@@ -61,6 +61,9 @@ function assert_bash_completions() {
     then
         fwktest_assert_string_equals "${command_context}" "${expected_command_context}"
     fi
-    __insert_completion_into_readline
+    if (( ${#complist[@]} > 0 ))
+    then
+        __insert_completion_into_readline
+    fi
     fwktest_assert_string_equals "${READLINE_LINE}" "${expected_readline_completion}"
 }
