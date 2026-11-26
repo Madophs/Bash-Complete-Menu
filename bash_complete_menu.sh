@@ -304,7 +304,7 @@ function __get_completions() {
         fi
     elif [[ "${command_context}" == "regular_string" ]]
     then
-        COMPREPLY=( "$(compgen -d "${COMP_WORDS[*]}")" )
+            COMPREPLY=( "$(compgen -f "${COMP_WORDS[*]}")" )
     else
         # determine completion function
         completion=$(complete -p "${main_arg}" 2>/dev/null | awk '{print $(NF-1)}')
