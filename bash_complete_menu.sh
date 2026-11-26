@@ -223,7 +223,8 @@ function __get_command_at_cursor() {
             '${') command_context='var_type1' ;;
             '$')  command_context='var_type2' ;;
             "'")  command_context='literal_string' ;;
-            '"')  command_context='string' ;;
+            '"')  command_context='regular_string' ;;
+            # TODO: ansi_c_string pending to implement
         esac
     fi
 
@@ -290,7 +291,7 @@ function __get_completions() {
             # complete varnames
             local varname="${main_arg##*[$\{]}" # remove unwanted leading chars ${
             COMPREPLY=( $(printf '${%s}\n' "$(compgen -v "${varname}")") )
-        elif [[ "${main_arg}" =~ ^\$\{?[a-zA-Z_0-9]+\}?\/$ || "${command_context}" == "string" ]]
+        elif [[ "${command_context}" == "regular_string" ]]
         then
             # variable with a slash will trigger directory completion
             COMPREPLY=( $(compgen -d "${main_arg}") )
@@ -298,7 +299,7 @@ function __get_completions() {
             # compgen -c queries all commands in $PATH and -d directories in $PWD
             COMPREPLY=( $(compgen -d -c "${main_arg}") )
         fi
-    elif [[ "${command_context}" == "string" ]]
+    elif [[ "${command_context}" == "regular_string" ]]
     then
         COMPREPLY=( "$(compgen -d "${COMP_WORDS[*]}")" )
     else
@@ -325,7 +326,7 @@ function __get_completions() {
         fi
     fi
 
-    if [[ "${command_context}" == "string" ]]
+    if [[ "${command_context}" == "regular_string" ]]
     then
         printf "%s\n" "${COMPREPLY[@]}" | sort -u
     else
@@ -341,7 +342,7 @@ function __insert_completion_into_readline() {
     local -i i=$((READLINE_POINT-1))
     local -i command_at_cursor_pos_end=$(( command_at_cursor_pos + ${#command_at_cursor} ))
 
-    if [[ "${command_context}" == "string" ]]
+    if [[ "${command_context}" == "regular_string" ]]
     then
         i=command_at_cursor_pos
     fi
