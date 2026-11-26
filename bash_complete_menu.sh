@@ -353,6 +353,7 @@ function __insert_completion_into_readline() {
     for (( ; i>=command_at_cursor_pos; i-=1 ))
     do
         [[ "${READLINE_LINE:${i}:1}" == " "  && "${READLINE_LINE:$(( i -1 )):1}" != '\' ]] && break
+        [[ "${READLINE_LINE:${i}:1}" == "=" ]] && break
     done
 
     if [[ "${command_context}" == "var_type1" && "${READLINE_LINE:${command_at_cursor_pos_end}:1}" != '}' ]]

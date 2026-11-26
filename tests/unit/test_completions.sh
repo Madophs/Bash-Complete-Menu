@@ -338,10 +338,69 @@ function test_double_quotes() {
     READLINE_EXPE='echo "bash --version "'
     assert_bash_completions 'echo "bash --version "' '' "${READLINE_EXPE}" 22 'cmd'
 }
-}
 
-# The following tests requires execution in interactive mode
-# bash -i test.sh
+function test_opt_param_assignment() {
+    guard_interactive_mode || return
+    pushd "${TEST_TEMP_DIR}" &> /dev/null
+    local READLINE_LINE="" READLINE_EXPE=""
+    local IFS=$'\n' # directories may contain spaces
+    create_test_file "input.txt" "output.txt" "extra.txt"
+    create_test_dir "spaced dir file/even deeper dir"
+    create_test_file "spaced dir file/disk.txt"
+    create_test_file "spaced dir file/even deeper dir/here is the file.txt"
+    #                        1         2         3         4         5         6         7         8         9
+    #              0123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789
+    READLINE_LINE='dd if='
+    READLINE_EXPE='dd if=input.txt'
+    assert_bash_completions "dd if=" 'input.txt' "${READLINE_EXPE}"
+
+    READLINE_LINE='dd if=input.txt of='
+    READLINE_EXPE='dd if=input.txt of=output.txt'
+    assert_bash_completions 'dd if=input.txt of=' 'output.txt' "${READLINE_EXPE}"
+
+    READLINE_LINE='dd if=${TEST_T} of='
+    READLINE_EXPE='dd if=${TEST_TEMP_DIR} of='
+    assert_bash_completions 'TEST_T' 'TEST_TEMP_DIR' "${READLINE_EXPE}" 13
+
+    READLINE_LINE='dd if=${TEST_TEMP_DIR}/ of='
+    READLINE_EXPE='dd if=${TEST_TEMP_DIR}/spaced\ dir\ file of='
+    assert_bash_completions 'dd if=${TEST_TEMP_DIR}/' '${TEST_TEMP_DIR}/spaced\ dir\ file' "${READLINE_EXPE}" 22
+
+    READLINE_LINE='dd if=${TEST_TEMP_DIR}/spaced\ dir\ file/ of='
+    READLINE_EXPE='dd if=${TEST_TEMP_DIR}/spaced\ dir\ file/disk.txt of='
+    assert_bash_completions 'dd if=${TEST_TEMP_DIR}/spaced\ dir\ file/' \
+                            '${TEST_TEMP_DIR}/spaced\ dir\ file/disk.txt' "${READLINE_EXPE}" 40
+
+    READLINE_LINE='dd if="${TEST_TEMP_D'
+    READLINE_EXPE='dd if="${TEST_TEMP_DIR}'
+    assert_bash_completions 'TEST_TEMP_D' 'TEST_TEMP_DIR' "${READLINE_EXPE}" 19
+
+    #                        1         2         3         4         5         6         7         8         9
+    #              0123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789
+    READLINE_LINE='dd if="${TEST_TEMP_DIR}/ of='
+    READLINE_EXPE='dd if="${TEST_TEMP_DIR}/spaced dir file of='
+    assert_bash_completions '${TEST_TEMP_DIR}/' \
+                            '${TEST_TEMP_DIR}/spaced dir file' "${READLINE_EXPE}" 23
+
+    READLINE_LINE='dd if="${TEST_TEMP_DIR}/spaced dir file/d" of='
+    READLINE_EXPE='dd if="${TEST_TEMP_DIR}/spaced dir file/disk.txt" of='
+    assert_bash_completions '${TEST_TEMP_DIR}/spaced dir file/d' \
+                            '${TEST_TEMP_DIR}/spaced dir file/disk.txt' "${READLINE_EXPE}" 40
+
+    READLINE_LINE='dd if="${TEST_TEMP_DIR}/spaced dir file/even deeper dir/" of=output.xt'
+    READLINE_EXPE='dd if="${TEST_TEMP_DIR}/spaced dir file/even deeper dir/here is the file.txt" of=output.xt'
+    assert_bash_completions '${TEST_TEMP_DIR}/spaced dir file/even deeper dir/' \
+                            '${TEST_TEMP_DIR}/spaced dir file/even deeper dir/here is the file.txt'\
+                            "${READLINE_EXPE}" 55
+
+    READLINE_LINE='dd if=${TEST_TEMP_DIR}/spaced\ dir\ file/even\ deeper\ dir/ of=output.xt'
+    READLINE_EXPE='dd if=${TEST_TEMP_DIR}/spaced\ dir\ file/even\ deeper\ dir/here\ is\ the\ file.txt of=output.xt'
+    assert_bash_completions 'dd if=${TEST_TEMP_DIR}/spaced\ dir\ file/even\ deeper\ dir/' \
+                            '${TEST_TEMP_DIR}/spaced\ dir\ file/even\ deeper\ dir/here\ is\ the\ file.txt' \
+                            "${READLINE_EXPE}" 58
+
+    popd &> /dev/null
+}
 
 function test_cd_completion_with_varname() {
     guard_interactive_mode || return
