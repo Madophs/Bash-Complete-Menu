@@ -272,10 +272,7 @@ function test_double_single_quotes() {
 # bash -i test.sh
 
 function test_cd_completion_with_varname() {
-    case $- in
-        *i*) ;;
-        *) echo -e "${__BLUE}[${__YELLOW}WARNING${__BLK}${__BLUE}]${__CYAN} ${FUNCNAME[0]}${__BLK}:only in interactive mode!" && return ;;
-    esac
+    guard_interactive_mode || return
     clean_test_dir
     create_test_dir 'test_dir'{0..3}
     export TEST_TEMP_DIR
@@ -297,10 +294,7 @@ function test_cd_completion_with_varname() {
 }
 
 function test_dir_completion_interactive() {
-    case $- in
-        *i*) ;;
-        *) echo -e "${__BLUE}[${__YELLOW}WARNING${__BLK}${__BLUE}]${__CYAN} ${FUNCNAME[0]}${__BLK}:only in interactive mode!" && return ;;
-    esac
+    guard_interactive_mode || return
     clean_test_dir
     create_test_dir 'to_complete'
     local -a arr=()

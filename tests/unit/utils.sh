@@ -67,3 +67,13 @@ function assert_bash_completions() {
     fi
     fwktest_assert_string_equals "${READLINE_LINE}" "${expected_readline_completion}"
 }
+
+function guard_interactive_mode() {
+    case $- in
+        *i*) ;;
+        *)
+            echo -e "${__BLUE}[${__YELLOW}WARNING${__BLK}${__BLUE}]${__CYAN} ${FUNCNAME[1]}${__BLK}:skipping interactive test cases! Please run: bash -i ./test.sh"
+            return 1
+            ;;
+    esac
+}
