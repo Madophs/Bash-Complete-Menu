@@ -297,7 +297,7 @@ function __get_completions() {
             COMPREPLY=( $(compgen -c "${main_arg}") )
         else
             # compgen -c queries all commands in $PATH and -d directories in $PWD
-            COMPREPLY=( $(compgen -c "${main_arg//\\/}") )
+            COMPREPLY=( $(compgen -c -v "${main_arg//\\/}") )
         fi
     elif [[ "${command_context}" == "regular_string" ]]
     then
