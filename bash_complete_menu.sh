@@ -45,9 +45,9 @@ function __parse_comp_input() {
     local -i input_len=${#raw_input}
     local -i is_escaped_char=0
     local token=''
-    for (( i=0; i<input_len; i+=1 ))
+    for (( i=0; i<input_len; ++i ))
     do
-        for (( ; i<input_len; i+=1 ))
+        for (( ; i<input_len; ++i ))
         do
             [[ "${raw_input:${i}:1}" == ' ' && ${is_escaped_char} == 0 ]] && break
 
@@ -80,7 +80,7 @@ function __get_command_at_cursor() {
 
     local -i i=0
     local -i stack_index=0
-    for (( i=0; i<cpos; i+=1 ))
+    for (( i=0; i<cpos; ++i ))
     do
         local c="${cmdline:${i}:1}"
         local n="${cmdline:$((i+1)):1}"
@@ -88,7 +88,7 @@ function __get_command_at_cursor() {
         then
             if [[ ${#group_char_stack[@]} -eq 0 || "${group_char_stack[-1]}" != "'" ]]
             then
-                stack_index+=1
+                (( ++stack_index ))
                 group_char_stack+=( "${c}" )
                 continue
             fi
@@ -99,7 +99,7 @@ function __get_command_at_cursor() {
                 continue
             else
                 cmd_stack[${stack_index}]+="${c}"
-                cmd_stack[$((stack_index-1))]="${cmd_stack[${stack_index}]}${c}"
+                cmd_stack[stack_index-1]="${cmd_stack[${stack_index}]}${c}"
                 unset "cmd_stack[${stack_index}]"
                 stack_index=$(( stack_index - 1 ))
                 continue
@@ -107,8 +107,7 @@ function __get_command_at_cursor() {
         elif [[ "${c}" == '\' ]]
         then
             cmd_stack[${stack_index}]+="${c}"
-            cmd_stack[${stack_index}]+="${n}"
-            i+=1
+            (( i+1 < cpos )) && (( ++i )) && cmd_stack[${stack_index}]+="${n}"
             continue
         elif [[ "${c}" =~ [\|\;\&] ]]
         then
@@ -117,7 +116,7 @@ function __get_command_at_cursor() {
             if (( ${#group_char_stack[@]} == 0 ))
             then
                 cmd_stack[${stack_index}]+="${c}"
-                stack_index+=1
+                (( ++stack_index ))
                 continue
             fi
 
@@ -130,29 +129,29 @@ function __get_command_at_cursor() {
             if [[ "${group_char_stack[-1]}" != '"' ]]
             then
                 cmd_stack[${stack_index}]+="${c}"
-                stack_index+=1
+                (( ++stack_index ))
                 continue
             fi
         elif [[ "${c}" == '$' ]]
         then
             if [[ "${n}" == '(' ]]
             then
-                i+=1
+                (( ++i ))
                 group_char_stack+=( '$(' )
-                stack_index+=1
+                (( ++stack_index ))
                 continue
             elif [[ "${n}" == '{' ]]
             then
-                i+=1
+                (( ++i ))
                 group_char_stack+=( '${' )
-                stack_index+=1
+                (( ++stack_index ))
                 continue
             else
                 group_char_stack+=( '$' )
-                stack_index+=1
+                (( ++stack_index ))
                 #continue
 
-                for (( i+=1; i<cpos; i+=1 ))
+                for (( ++i; i<cpos; ++i ))
                 do
                     [[ "${cmdline:${i}:1}" =~ [a-zA-Z_] ]] || break
                     cmd_stack[${stack_index}]+="${cmdline:${i}:1}"
@@ -169,29 +168,29 @@ function __get_command_at_cursor() {
                 unset "cmd_stack[${prev_stack_index}]"
 
                 # We must continue in the current position on next iteration
-                i=$(( i - 1 ))
+                (( --i ))
                 continue
             fi
         elif [[ "${c}" == '<' && "${n}" == '(' ]]
         then
-            i+=1
+            (( ++i ))
             group_char_stack+=( '<(' )
-            stack_index+=1
+            (( ++stack_index ))
             continue;
         elif [[ "${c}" == '`' && ( ${#group_char_stack[@]} == 0 || "${group_char_stack[-1]}" != '`' ) ]]
         then
             group_char_stack+=( '`' )
-            stack_index+=1
+            (( ++stack_index ))
             continue
         elif [[ "${c}" == '"' && ( ${#group_char_stack[@]} == 0 || "${group_char_stack[-1]}" != '"' ) ]]
         then
             group_char_stack+=( '"' )
-            stack_index+=1
+            (( ++stack_index ))
             continue
         elif [[ "${c}" == '(' && ( ${#group_char_stack[@]} == 0 || "${group_char_stack[-1]}" != ')' ) ]]
         then
             group_char_stack+=( '(' )
-            stack_index+=1
+            (( ++stack_index ))
             continue
         elif [[ "${c}" =~ [\)\`\}\ \"] && ${#group_char_stack[@]} -gt 0 ]]
         then
@@ -201,7 +200,7 @@ function __get_command_at_cursor() {
             if [[ "${c}" == "${close_char}" ]]
             then
                 local -i prev_stack_index=${stack_index}
-                stack_index=$(( stack_index - 1 ))
+                (( --stack_index ))
                 cmd_stack[${stack_index}]+="${open_char}${cmd_stack[${prev_stack_index}]}${close_char}"
 
                 unset 'group_char_stack[-1]'
@@ -243,7 +242,8 @@ function __get_command_at_cursor() {
 
     [[ "${cmdline:${i}:1}" =~ [\ \(\$\}\)\"\`] ]] && return
 
-    for (( i+=1; i<line_len; i+=1 ))
+    # TODO: optimize this
+    for (( ++i; i<line_len; ++i ))
     do
         [[ "${cmdline:${i}:1}" =~ [\ \(\$\}\)\"\`] ]] && break
         command_at_cursor+="${cmdline:${i}:1}"
@@ -276,7 +276,7 @@ function __get_completions() {
     local main_arg="${COMP_WORDS[0]}"
 
     # for single/partial cmds queries are done through compgen
-    if [[ ${#COMP_WORDS[@]} == 0 ]]
+    if (( ${#COMP_WORDS[@]} == 0 ))
     then
         COMPREPLY=( "$(compgen -d)" )
     elif (( ${#COMP_WORDS[@]} == 1 ))
@@ -486,9 +486,10 @@ function __print_suggestions() {
         fi
     fi
 
+    local -i i=0 j=0
     for (( i=start_index; i<end_index; i+=num_cols ))
     do
-        for (( j=i; j<end_index && j<(i+num_cols); j+=1 ))
+        for (( j=i; j<end_index && j<(i+num_cols); ++j ))
         do
             if (( complist_index == j ))
             then
