@@ -125,10 +125,82 @@ function test_complete_varname() {
 }
 
 function test_dir_completion() {
+    guard_interactive_mode || return
     local READLINE_LINE="" READLINE_EXPE=""
+    local IFS=$'\n'
+    clean_test_dir
+    create_test_dir "dir to file"
+    create_test_dir "dir to file/another dir folder/and another one why not"
+    create_test_dir "dir to file/another dir2 folder/and another one why not"
+    create_test_file "dir to file2"
+    #                        1         2         3         4         5         6         7         8         9
+    #              0123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789
     READLINE_LINE='/'
     READLINE_EXPE='/etc'
     assert_bash_completions '/' '/etc' "${READLINE_EXPE}"
+
+    READLINE_LINE='${TEST_TEMP_DIR}/dir\'
+    READLINE_EXPE='${TEST_TEMP_DIR}/dir\ to\ file'
+    assert_bash_completions '${TEST_TEMP_DIR}/dir\' '${TEST_TEMP_DIR}/dir\ to\ file' "${READLINE_EXPE}"
+
+    READLINE_LINE='${TEST_TEMP_DIR}/dir\ '
+    READLINE_EXPE='${TEST_TEMP_DIR}/dir\ to\ file'
+    assert_bash_completions '${TEST_TEMP_DIR}/dir\ ' '${TEST_TEMP_DIR}/dir\ to\ file' "${READLINE_EXPE}"
+
+    READLINE_LINE='${TEST_TEMP_DIR}/dir\ to\ file/another\ d/and\ another\ one\ why\ not'
+    READLINE_EXPE='${TEST_TEMP_DIR}/dir\ to\ file/another\ dir2\ folder/and\ another\ one\ why\ not'
+    assert_bash_completions '${TEST_TEMP_DIR}/dir\ to\ file/another\ d' \
+                            '${TEST_TEMP_DIR}/dir\ to\ file/another\ dir2\ folder' \
+                            "${READLINE_EXPE}" 40
+}
+
+function test_quoted_dir_completion() {
+    guard_interactive_mode || return
+    local READLINE_LINE="" READLINE_EXPE=""
+    local IFS=$'\n'
+    clean_test_dir
+    create_test_dir "dir to file"
+    create_test_dir "dir to file/another dir folder/and another one why not"
+    create_test_dir "dir to file/another dir2 folder/and another one why not"
+    create_test_file "dir to file2"
+    #                        1         2         3         4         5         6         7         8         9
+    #              0123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789
+    READLINE_LINE='/'
+    READLINE_EXPE='/etc'
+    assert_bash_completions '/' '/etc' "${READLINE_EXPE}"
+
+    READLINE_LINE='"${TEST_TEMP_DIR}/dir'
+    READLINE_EXPE='"${TEST_TEMP_DIR}/dir to file'
+    assert_bash_completions '${TEST_TEMP_DIR}/dir' '${TEST_TEMP_DIR}/dir to file' "${READLINE_EXPE}"
+
+    READLINE_LINE='"${TEST_TEMP_DIR}/dir '
+    READLINE_EXPE='"${TEST_TEMP_DIR}/dir to file'
+    assert_bash_completions '${TEST_TEMP_DIR}/dir ' '${TEST_TEMP_DIR}/dir to file' "${READLINE_EXPE}"
+
+    READLINE_LINE='"${TEST_TEMP_DIR}/dir to file/another d/and another one why not"'
+    READLINE_EXPE='"${TEST_TEMP_DIR}/dir to file/another dir2 folder/and another one why not"'
+    assert_bash_completions '${TEST_TEMP_DIR}/dir to file/another d' \
+                            '${TEST_TEMP_DIR}/dir to file/another dir2 folder' \
+                            "${READLINE_EXPE}" 38
+}
+function test_executable_file_completion() {
+    guard_interactive_mode || return
+    local READLINE_LINE="" READLINE_EXPE=""
+    local IFS=$'\n'
+    clean_test_dir
+    create_test_dir "dir to file"
+    create_test_file "dir to file/test.sh"
+    chmod +x "${TEST_TEMP_DIR}/dir to file/test.sh"
+    echo '#!/usr/bin/env bash' > "${TEST_TEMP_DIR}/dir to file/test.sh"
+    #                        1         2         3         4         5         6         7         8         9
+    #              0123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789
+    READLINE_LINE='${TEST_TEMP_DIR}/dir\ to\ file/'
+    READLINE_EXPE='${TEST_TEMP_DIR}/dir\ to\ file/test.sh'
+    assert_bash_completions '${TEST_TEMP_DIR}/dir\ to\ file/' '${TEST_TEMP_DIR}/dir\ to\ file/test.sh' "${READLINE_EXPE}"
+
+    READLINE_LINE='"${TEST_TEMP_DIR}/dir to file/'
+    READLINE_EXPE='"${TEST_TEMP_DIR}/dir to file/test.sh'
+    assert_bash_completions '${TEST_TEMP_DIR}/dir to file/' '${TEST_TEMP_DIR}/dir to file/test.sh' "${READLINE_EXPE}"
 }
 
 function test_command_after_pipe() {
@@ -230,7 +302,7 @@ function test_single_quotes() {
     assert_bash_completions "\$(git stat" '' "${READLINE_EXPE}"
 }
 
-function test_double_single_quotes() {
+function test_double_quotes() {
     local READLINE_LINE="" READLINE_EXPE=""
     #                        1         2         3         4         5         6         7         8         9
     #              0123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789

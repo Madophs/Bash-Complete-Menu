@@ -246,7 +246,7 @@ function __get_command_at_cursor() {
     # TODO: optimize this
     for (( ++i; i<line_len; ++i ))
     do
-        [[ "${cmdline:${i}:1}" =~ [\ \(\$\}\)\"\`] ]] && break
+        [[ "${cmdline:${i}:1}" =~ [\ \(\$\}\)\"\`\/] ]] && break
         command_at_cursor+="${cmdline:${i}:1}"
     done
 }
