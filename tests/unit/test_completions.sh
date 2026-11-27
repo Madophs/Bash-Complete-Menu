@@ -339,6 +339,28 @@ function test_double_quotes() {
     assert_bash_completions 'echo "bash --version "' '' "${READLINE_EXPE}" 22 'cmd'
 }
 
+# @brief from my perspective ansi_c_string completion should behave "similar" to regular_string
+function test_ansi_c_quotes() {
+    local READLINE_LINE="" READLINE_EXPE=""
+    #                        1         2         3         4         5         6         7         8         9
+    #              0123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789_123456789
+    READLINE_LINE="echo \$'it\\'s still inside"
+    READLINE_EXPE="echo \$'it\\'s still inside"
+    assert_bash_completions "it\\'s still inside" '' "${READLINE_EXPE}" 23 'ansi_c_string'
+
+    READLINE_LINE="echo \$'foo\\\\'"
+    READLINE_EXPE="echo \$'foo\\\\'"
+    assert_bash_completions "echo \$'foo\\\\'" '' "${READLINE_EXPE}" 13 'cmd'
+
+    READLINE_LINE="echo \$'\$BASH_VER"
+    READLINE_EXPE="echo \$'\$BASH_VERSION"
+    assert_bash_completions "BASH_VER" 'BASH_VERSION' "${READLINE_EXPE}" 16 'var_type2'
+
+    READLINE_LINE="echo \$'\$(git stat"
+    READLINE_EXPE="echo \$'\$(git status"
+    assert_bash_completions "git stat" 'status' "${READLINE_EXPE}" 17 'cmd'
+}
+
 function test_opt_param_assignment() {
     guard_interactive_mode || return
     pushd "${TEST_TEMP_DIR}" &> /dev/null

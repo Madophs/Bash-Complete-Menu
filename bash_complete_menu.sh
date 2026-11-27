@@ -66,6 +66,7 @@ function __parse_comp_input() {
     done
 }
 
+# TODO: refactor and test performance (but later I don't have time)
 function __get_command_at_cursor() {
     local cmdline="${1}"
     local -i line_len=${#cmdline}
@@ -84,7 +85,8 @@ function __get_command_at_cursor() {
     do
         local c="${cmdline:${i}:1}"
         local n="${cmdline:$((i+1)):1}"
-        if [[ "${c}" == "'" || (${#group_char_stack[@]} -ne 0 &&  "${group_char_stack[-1]}" == "'") ]]
+        if [[ ( "${c}" == "'" || (${#group_char_stack[@]} -ne 0 && "${group_char_stack[-1]}" == "'") ) &&
+              ( ${#group_char_stack[@]} -eq 0 || "${group_char_stack[-1]}" != "$'" ) ]]
         then
             if [[ ${#group_char_stack[@]} -eq 0 || "${group_char_stack[-1]}" != "'" ]]
             then
@@ -146,6 +148,12 @@ function __get_command_at_cursor() {
                 group_char_stack+=( '${' )
                 (( ++stack_index ))
                 continue
+            elif [[ "${n}" == "'" ]]
+            then
+                (( ++i ))
+                group_char_stack+=( "$'" )
+                (( ++stack_index ))
+                continue
             else
                 group_char_stack+=( '$' )
                 (( ++stack_index ))
@@ -192,9 +200,9 @@ function __get_command_at_cursor() {
             group_char_stack+=( '(' )
             (( ++stack_index ))
             continue
-        elif [[ "${c}" =~ [\)\`\}\ \"] && ${#group_char_stack[@]} -gt 0 ]]
+        elif [[ "${c}" =~ [\'\)\`\}\ \"] && ${#group_char_stack[@]} -gt 0 ]]
         then
-            local -A open_close_group_char=( ['$(']=')' ['${']='}' ['(']=')' ['<(']=')' ['`']='`' ['"']='"' ['$']=' ' )
+            local -A open_close_group_char=( ['$(']=')' ['${']='}' ['(']=')' ['<(']=')' ['`']='`' ['"']='"' ['$']=' ' ["$'"]="'" )
             local open_char="${group_char_stack[-1]}"
             local close_char="${open_close_group_char[${open_char}]}"
             if [[ "${c}" == "${close_char}" ]]
@@ -220,11 +228,11 @@ function __get_command_at_cursor() {
     if (( ${#group_char_stack[@]} > 0 ))
     then
         case "${group_char_stack[-1]}" in
-            '${') command_context='var_type1' ;;
-            '$')  command_context='var_type2' ;;
-            "'")  command_context='literal_string' ;;
-            '"')  command_context='regular_string' ;;
-            # TODO: ansi_c_string pending to implement
+            '${')  command_context='var_type1'      ;;
+            '$')   command_context='var_type2'      ;;
+            "'")   command_context='literal_string' ;;
+            '"')   command_context='regular_string' ;;
+            "$'")  command_context='ansi_c_string'  ;;
         esac
     fi
 
@@ -241,6 +249,7 @@ function __get_command_at_cursor() {
     # skip leading spaces
     command_at_cursor_pos+=$(( ${#cmd_stack[${stack_index}]} - ${#command_at_cursor} ))
 
+    # TODO: optimize this
     [[ "${cmdline:${i}:1}" =~ [\ \(\$\}\)\"\`] ]] && return
 
     # TODO: optimize this
