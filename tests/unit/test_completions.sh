@@ -337,6 +337,10 @@ function test_double_quotes() {
     READLINE_LINE='echo "bash --version "'
     READLINE_EXPE='echo "bash --version "'
     assert_bash_completions 'echo "bash --version "' '' "${READLINE_EXPE}" 22 'cmd'
+
+    READLINE_LINE="echo \"'\${BASH_V"
+    READLINE_EXPE="echo \"'\${BASH_VERSION}"
+    assert_bash_completions "BASH_V" 'BASH_VERSION' "${READLINE_EXPE}" 15 'var_type1'
 }
 
 # @brief from my perspective ansi_c_string completion should behave "similar" to regular_string

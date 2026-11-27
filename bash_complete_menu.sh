@@ -86,7 +86,8 @@ function __get_command_at_cursor() {
         local c="${cmdline:${i}:1}"
         local n="${cmdline:$((i+1)):1}"
         if [[ ( "${c}" == "'" || (${#group_char_stack[@]} -ne 0 && "${group_char_stack[-1]}" == "'") ) &&
-              ( ${#group_char_stack[@]} -eq 0 || "${group_char_stack[-1]}" != "$'" ) ]]
+              ( ${#group_char_stack[@]} -eq 0 || "${group_char_stack[-1]}" != "$'" ) &&
+              ( ${#group_char_stack[@]} -eq 0 || "${group_char_stack[-1]}" != '"' ) ]]
         then
             if [[ ${#group_char_stack[@]} -eq 0 || "${group_char_stack[-1]}" != "'" ]]
             then
